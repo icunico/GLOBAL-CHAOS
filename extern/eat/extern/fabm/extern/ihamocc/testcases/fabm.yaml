@@ -1,0 +1,341 @@
+check_conservation: false
+instances:
+  alkalinization:
+    model: ihamocc/alkalinization
+    coupling:
+      oafx: oafx/data
+      alkali: carbon/alkali
+  carbon:
+    model: ihamocc/carbon
+    initialization:
+      sco212: 2.45e-3
+      alkali: 2.4e-3
+      calc: 0.0
+    coupling:
+      atco2: atco2/data
+      silica: silica/si
+      phosph: phosph/c
+  cfc:
+    model: ihamocc/cfc
+    initialization:
+      cfc11: 0.0
+      cfc12: 0.0
+      sf6: 0.0
+    coupling:
+      atm_cfc11: atm_cfc11/data
+      atm_cfc12: atm_cfc12/data
+      atm_sf6: atm_sf6/data
+#  cisonew:
+#    model: ihamocc/cisonew
+#    parameters:
+#      re1312: 0.0112372
+#      re14to: 1.176e-12
+#      prei13: -6.5
+#      prei14: 0.
+#    initialization:
+#      sco213:
+#      sco214:
+#      calc13:
+#      calc14:
+#      det14:
+#      det13:
+#      doc14:
+#      doc13:
+#      phy14:
+#      phy13:
+#      zoo14:
+#      zoo13:
+#    coupling:
+#      calc: carbon/calc
+#      phy: phytoplankton/phy
+#      doc: detritus/doc
+#      det: detritus/det
+#      zoo: zooplankton/zoo
+#      sco212: carbon/sco212
+#      atco2: atco2/data  
+#      hi: carbon/hi
+#      kwco2sol: carbon/kwco2sol
+#      phytomi: phytoplankton/phytomi
+#      phymor: phytoplankton/phymor
+#      phyrem: phytoplankton/phyrem
+#      pommor: zooplankton/pommor  
+#      dimmor: zooplankton/dimmor  
+#      phosy: phytoplankton/phosy   
+#      exud: phytoplankton/exud
+#      graton: zooplankton/graton
+#      grawa: zooplankton/grawa
+#      gratpoc: zooplankton/
+#      domex: zooplankton/domex
+#      pocrem: detritus/pocrem
+#      docrem: detritus/docrem
+#      remin2o: detritus/remin2o
+#      delcar_part: detritus/delcar_part
+#      dissol: carbon/dissol
+#      co2star: carbon/co2star
+#      wpoc: detritus/wpoc
+#      wcal: detritus/wcal
+#      det13_bot: sediment_bypass/pool6
+#      det14_bot: sediment_bypass/pool7
+#      sco213_bot: sediment_bypass/pool8
+#      sco214_bot: sediment_bypass/pool9
+  detritus:
+    model: ihamocc/detritus
+    parameters:
+      remido: 0.004
+      drempoc: 0.025
+      dremopal: 0.003
+      dremn2o: 0.01
+      dremsul: 0.005
+      bkopal: 5.e-6
+      ropal: 30.
+      rcalc: 40.
+      claydens: 2600
+      relaxfe: 1.3699e-4
+      wpoc: 5.
+      wcal: 30.
+      wopal: 15. #30.
+      AGG: false
+      WLIN: false
+    initialization:
+      det: 4.26e-10
+    coupling:
+      det_bot: sediment_bypass/pool1
+      calc_bot: sediment_bypass/pool2
+      alkali_bot: sediment_bypass/pool3
+      opal_bot: sediment_bypass/pool4
+      fdust_bot: sediment_bypass/pool5
+      gasnit: nitrogen/gasnit
+      phy: phytoplankton/phy
+      oxygen: oxygen/oxygen
+      sco212: carbon/sco212
+      ano3: nitrogen/ano3
+      an2o: nitrogen/an2o
+      alkali: carbon/alkali
+      calc: carbon/calc
+      iron: iron/iron
+      fdust: iron/fdust
+      kmle: mixed_layer/kmle
+      phymor: phytoplankton/phymor
+      phyrem: phytoplankton/phyrem
+      phosy: phytoplankton/phosy
+      exud: phytoplankton/exud
+      pommor: zooplankton/pommor
+      dimmor: zooplankton/dimmor
+      graton: zooplankton/graton
+      grawa: zooplankton/grawa
+      gratpoc: zooplankton/gratpoc
+      satoxy: oxygen/satoxy
+      doc: doc/c
+      silica: silica/si
+      opal: opal/si
+      phosph: phosph/c
+  dms:
+    model: ihamocc/dms
+    parameters:
+      with_dmsph: false
+      dms_gamma: 0.87
+      dmsp6: 1.e-8
+      dmsp5: 0.025
+      dmsp4: 0.125
+      dmsp3: 0.0864
+      dmsp2: 0.0011
+      dmsp1: 10.
+    initialization:
+      dms: 0.0
+    coupling:
+      light: light/light
+#      pi_ph: pi_ph_file
+#      hi: carbon/hi
+      delcar: detritus/delcar
+      delsil: detritus/delsil
+  doc:
+    model: ihamocc/tracer
+    parameters:
+      has_carbon: true
+      has_phosphorus: true
+      has_nitrogen: true
+      has_iron: true
+    initialization:
+      c: 1.6e-7
+  iron:
+    model: ihamocc/iron
+    initialization:
+      iron: 4.1e-10
+      fdust: 1e-11
+    coupling:
+      dust: fedep/data
+  light:
+    model: ihamocc/light
+    parameters:
+      atten_w: 0.04
+      atten_uv: 0.33
+      ctochl: 60.
+    coupling:
+      phy: phytoplankton/phy
+  mixed_layer:
+    model: ihamocc/mixed_layer
+    parameters:
+      avt_c: 5.e-4
+      minh: 10.
+  natdic:
+    model: ihamocc/natdic
+    parameters:
+      atco2_nat: 284.32
+    initialization:
+      natcalc: 0.0
+      natsco212: 2.45e-3
+      natalkali: 2.4e-3
+    coupling:
+      silica: silica/si
+      phosph: phosph/c
+      oxygen: oxygen/oxygen
+      ano3: nitrogen/ano3
+      remin2o: detritus/remin2o
+      remin: detritus/remin
+      phyrem: phytoplankton/phyrem
+      dimmor: zooplankton/dimmor  
+      phosy: phytoplankton/phosy
+      graton: zooplankton/graton
+      pocrem: detritus/pocrem
+      docrem: detritus/docrem
+      delcar: detritus/delcar
+      rdnit1: detritus/rdnit1
+      dano3: nitrogen/dano3
+      wcal:  detritus/wcal
+  nitrogen:
+    model: ihamocc/nitrogen
+    parameters:
+      tf2: -0.0042
+      tf1: 0.2253
+      tf0: -2.7819
+      tff: 0.2395
+      bluefix: 0.005
+    initialization:
+      gasnit: 0.0
+      an2o: 0.0
+      ano3: 2.75e-6
+    coupling:
+      oxygen: oxygen/oxygen
+      alkali: carbon/alkali
+      phosph: phosph/c
+      ndep_in: ndep/data
+      kmle: mixed_layer/kmle
+  opal:
+    model: ihamocc/tracer
+    parameters:
+      has_silicon: true
+    initialization:
+      si: 5.0e-8
+  oxygen:
+    model: ihamocc/oxygen
+    initialization:
+      oxygen: 2.47e-4
+  phosph:
+    model: ihamocc/tracer
+    parameters:
+      has_phosphorus: true
+    initialization:
+      c: 3.61e-7
+  phytoplankton:
+    model: ihamocc/phytoplankton
+    parameters:
+      phytomi: 1.0e-11
+      pi_alpha: 0.008 
+      bkphy: 4.e-8
+      dyphy: 0.004
+      gammap: 0.04
+    initialization:
+      phy: 3.69e-9
+    coupling:
+      sco212: carbon/sco212
+      phosph: phosph/c
+      ano3: nitrogen/ano3
+      iron: iron/iron
+      det: detritus/det
+      oxygen: oxygen/oxygen
+      doc: doc/c
+      light: light/light
+  preftrc:
+    model: ihamocc/preformed_tracer
+    coupling:
+      oxygen: oxygen/oxygen
+      alkali: carbon/alkali
+      sco212: carbon/sco212
+      phosph: phosph/c
+  sediment_bypass:
+    model: ihamocc/sediment_bypass
+    parameters:
+      ntracers: 5 #9
+    coupling:
+      tracer1: detritus/det
+      tracer2: carbon/sco212
+      tracer3: carbon/alkali
+      tracer4: silica/si
+      tracer5: iron/fdust
+      #tracer6: cisonew/det13
+      #tracer7: cisonew/det14
+      #tracer8: cisonew/sco213
+      #tracer9: cisonew/sco214
+  silica:
+    model: ihamocc/tracer
+    parameters:
+      has_silicon: true
+    initialization:
+      si: 5.0e-8
+  zooplankton:
+    model: ihamocc/zooplankton
+    parameters:
+      grami: 1.e-10
+      grazra: 1.2
+      bkzoo: 8.e-8
+      epsher: 0.8
+      zinges: 0.6
+      spemor: 3.e6
+      gammaz: 0.06
+      ecan: 0.95
+    initialization:
+      zoo: 5.0e-9
+    coupling:
+      phytomi: phytoplankton/phytomi
+      phy: phytoplankton/phy
+      doc: doc/c
+  oafx:
+    model: surface_constant                  
+    parameters:
+      standard_name:                          
+      value: 0.0                             
+  atco2:
+    model: surface_constant                   
+    parameters:
+      standard_name:                          
+      value: 350.0   
+  ndep:
+    model: surface_constant                  
+    parameters:
+      standard_name:                          
+      value: 4.4e-12           
+  fedep:
+    model: surface_constant
+    parameters:
+      standard_name:
+      value: 2.5e-11
+  ice:
+    model: surface_constant
+    parameters:
+      standard_name: ice_area_fraction
+      value: 0.0
+  atm_cfc11:
+    model: surface_constant
+    parameters:
+      standard_name: 
+      value: 0.5
+  atm_cfc12:
+    model: surface_constant
+    parameters:
+      standard_name: 
+      value: 0.5
+  atm_sf6:
+    model: surface_constant
+    parameters:
+      standard_name: 
+      value: 0.5

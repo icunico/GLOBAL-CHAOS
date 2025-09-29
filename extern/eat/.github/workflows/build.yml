@@ -1,0 +1,57 @@
+name: Build
+on: push
+jobs:
+   main:
+      strategy:
+        fail-fast: false
+        matrix:
+          os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+      runs-on: ${{ matrix.os }}
+      defaults:
+        run:
+          shell: bash -el {0}
+      steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+           submodules: recursive
+      - name: Install conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: eat
+      - name: Compile (Linux, Mac)
+        run: source ./install
+        if: matrix.os != 'windows-latest'
+      - name: Compile (Windows)
+        run: |
+          conda install -c conda-forge m2w64-toolchain msmpi openblas libpython
+          patch -p1 < .github/workflows/datetime.patch
+          patch -p1 < .github/workflows/ersem.patch
+          patch -p1 < .github/workflows/ogs.patch
+          source ./install -DCMAKE_Fortran_COMPILER=gfortran
+        env:
+          CMAKE_GENERATOR: "MinGW Makefiles"
+          FFLAGS: "-fno-range-check"
+          CFLAGS: "-DMS_WIN64"
+        if: matrix.os == 'windows-latest'
+      # - name: Run 2d test case
+      #   run: |
+      #     source ${CONDA}/etc/profile.d/conda.sh
+      #     conda activate eat
+      #     cd tests/2d/
+      #     mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
+      #     mpiexec -np 1 eat_obs_2d : -np 1 eatpy-filter : -np 9 eat_model_2d
+      - name: Clone gotm-cases
+        run: |
+          git clone -b v6.0 https://github.com/gotm-model/cases.git gotm-cases
+      - name: Run gotm test case
+        run: |
+          cd tests/nns_annual
+          eat-gotm   # this will write the restart that the next command operates on
+          eat-gotm-gen restart restart.nc 2 --exclude z --exclude zi --exclude h
+          mpiexec -n 2 eat-gotm --separate_gotm_restart
+          eat-gotm-gen yaml gotm.yaml 2 -p surface/u10/scale_factor 0.2 -p surface/v10/scale_factor 0.2 -p turbulence/turb_param/k_min 0.2
+          mpiexec -n 1 python run.py : -n 2 eat-gotm --separate_gotm_yaml
+

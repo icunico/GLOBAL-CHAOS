@@ -1,0 +1,65 @@
+import numpy as np
+from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
+
+# Definizione dei parametri
+
+r = [0.5, 0.5, 0.5]
+K = [1, 1, 1]
+a_P = [7.5, 5.5, 7.5]
+a_C = [1, 1]
+a_X = [0.1, 0.1, 0.1]
+b_C = [0.05, 0.05, 0.05]
+b_X = [0.05, 0.05, 0.05, 0.05, 0.05]
+a_Y = 0.1
+a_Z = 0.1
+d_C = [0.01, 0.01]
+d_X = 0.05
+d_Y = 0.0
+d_Z = 0.0
+
+# Sistema di equazioni differenziali
+def system(t, vars):
+    P1, P2, P3, C1, C2, X, Y, Z = vars
+    
+    dPdt = [P1 * (r[0] * (1 - P1/K[0]) - a_P[0] * C1 / (1 + b_C[0] * P1 + 
+b_C[1] * P2 + b_C[2] * P3)),
+            P2 * (r[1] * (1 - P2/K[1]) - a_P[1] * C1 / (1 + b_C[0] * P1 + 
+b_C[1] * P2 + b_C[2] * P3)),
+            P3 * (r[2] * (1 - P3/K[2]) - a_P[2] * C1 / (1 + b_C[0] * P1 + 
+b_C[1] * P2 + b_C[2] * P3))]
+    
+    dCdt = [C1 * (a_C[0] * P1 + a_C[1] * P2 + a_C[1] * P3) / (1 + b_C[0] * 
+P1 + b_C[1] * P2 + b_C[2] * P3) - d_C[0],
+            C2 * (a_C[0] * P1 + a_C[1] * P2 + a_C[1] * P3) / (1 + b_C[0] * 
+P1 + b_C[1] * P2 + b_C[2] * P3) - d_C[1]]
+    
+    dXdt = X * (sum(a_X[i] * P for i, P in enumerate([P1, P2, P3])) / (1 + 
+sum(b_X[i] * P for i, P in enumerate([P1, P2, P3]))) - d_X)
+    dYdt = Y * (a_Y * X / (1 + b_X[3] * X) - d_Y)
+    dZdt = Z * (a_Z * Y / (1 + b_X[4] * Y) - d_Z)
+    
+    return dPdt + dCdt + [dXdt, dYdt, dZdt]
+
+# Condizioni iniziali
+P1_0, P2_0, P3_0 = 10, 10, 10
+C1_0, C2_0 = 5, 5
+X_0, Y_0, Z_0 = 0.5, 0, 0
+initial_conditions = [P1_0, P2_0, P3_0, C1_0, C2_0, X_0, Y_0, Z_0]
+
+# Risoluzione numerica
+time_span = (0, 100)
+time_eval = np.linspace(*time_span, 1000)
+solution = solve_ivp(system, time_span, initial_conditions, 
+t_eval=time_eval)
+
+# Plot dei risultati
+plt.figure(figsize=(10, 6))
+for i, label in enumerate(["P1", "P2", "P3", "C1", "C2", "X", "Y", "Z"]):
+    plt.plot(solution.t, solution.y[i], label=label)
+plt.xlabel("Tempo")
+plt.ylabel("Valori")
+plt.legend()
+plt.title("Dinamica del sistema")
+plt.show()
+

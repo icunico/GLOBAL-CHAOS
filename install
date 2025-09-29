@@ -1,0 +1,35 @@
+# This script is intended to be source'd, not executed
+
+set -e
+
+REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Add additional FABM "institutes" (bfm, ecosmo, etc.) and their base directory on the line below.
+FABM_ARGS="-DFABM_INSTITUTES=gotm;msi;pml;ersem;pisces;nersc -DFABM_ERSEM_BASE=${REPO_DIR}/extern/ersem -DFABM_PISCES_BASE=${REPO_DIR}/extern/pisces -DFABM_NERSC_BASE=${REPO_DIR}/extern/ecosmo -DCMAKE_Fortran_COMPILER=gfortran"
+
+# Build pyfabm
+WORK_DIR=`mktemp -d`
+cd ${WORK_DIR}
+cmake ${REPO_DIR}/extern/fabm/src/drivers/python $FABM_ARGS
+make -j4 install
+cd -
+rm -rf ${WORK_DIR}
+
+# Build gotm-fabm
+WORK_DIR=`mktemp -d`
+cd ${WORK_DIR}
+cmake ${REPO_DIR}/extern/gotm -DFABM_BASE=${REPO_DIR}/extern/fabm $FABM_ARGS
+make -j4
+cp -v gotm ~/.local/bin/
+cd -
+rm -rf ${WORK_DIR}
+
+# Build eat
+WORK_DIR=`mktemp -d`
+cd ${WORK_DIR}
+cmake ${REPO_DIR}/extern/eat -DFABM_BASE=${REPO_DIR}/extern/fabm $FABM_ARGS
+make -j4 install
+cd -
+rm -rf ${WORK_DIR}
+
+cd ../..

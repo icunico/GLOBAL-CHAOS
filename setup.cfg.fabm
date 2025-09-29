@@ -1,0 +1,4 @@
+[build_ext]
+cmake_opts=-DFABM_EXTRA_INSTITUTES=ogs -DFABM_OGS_BASE=../ogs -DFABM_FUSSMANN_BASE=../fussmann
+force=1
+debug=1

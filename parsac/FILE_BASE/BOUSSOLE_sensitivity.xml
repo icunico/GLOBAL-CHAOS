@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../client/config.xsd">
+  <transports>
+    <transport type="sqlite" path="not_in_use.db"/>
+  </transports>
+  <executable path="/g100_scratch/userexternal/gocchipi/TEMP/seamless-notebooks/setups/setup_BFM1D_BOUSSOLE/gotm.xx --ignore_unknown_config" shell="True"/>
+  <setup path="/g100_scratch/userexternal/gocchipi/TEMP/seamless-notebooks/setups/setup_BFM1D_BOUSSOLE" exclude_files="" exclude_dirs=""/>
+  <parameters>
+    <parameter file="fabm.yaml" variable="instances/P1/parameters/p_qlcPPY" minimum="0.002" maximum="0.038" />
+    <parameter file="fabm.yaml" variable="instances/P1/parameters/p_sum" minimum="1.25" maximum="4.75" />
+  </parameters>
+  <targets>
+    <!--example indicators-->
+    <!--1.Chlorophyll   dcm relaret dstart 365+182 (first july last year stop in 31 october +120) // time of max chl with a spinup of 1year -->  
+    <target name="chl_max_in_10m_to_150m" expression="(P1_Chl+P2_Chl+P3_Chl+P4_Chl)[365:,131:270].mean(axis=0).max(axis=0)" path="result.nc"/>    
+  </targets>
+</config>

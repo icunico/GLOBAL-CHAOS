@@ -1,0 +1,55 @@
+package:
+  name: eatpy
+  version: "0.9.7"
+
+source:
+  git_url: https://github.com/BoldingBruggeman/eat.git
+
+build:
+  entry_points:
+    - eat-gotm-gen = eatpy.models.gotm_generate_ensemble:main
+  ignore_run_exports:
+    - mpi4py                     # only needed for types and access to MPI itself
+
+requirements:
+  host:
+    - python {{ python }}
+    - cython
+    - pip
+    - setuptools
+    #- numpy>=1.17               # only needed if "cimport numpy" is done in a pyx file
+    - blas-devel
+    - liblapack
+    - netcdf-fortran             # [not win] not needed on Windows because it gets netcdf from GOTM
+    - {{ mpi }}
+    - mpi4py                     # because eatpy/_eat_filter_pdaf.pyx does "cimport mpi4py.xxx"
+  build:
+    - cmake
+    - make                       # [not win]
+    - {{ compiler('c') }}
+    - {{ compiler('fortran') }}  # [not win]
+  run:
+    - python
+    - {{ pin_compatible('numpy') }}
+    - mpi4py
+    - netCDF4
+    - pyyaml                      # for eatpy-gotm-gen
+    - {{ mpi }}
+
+test:
+  requires:
+  imports:
+    - eatpy
+  commands:
+    - eat-gotm-gen -h
+    - eat-gotm -h
+
+about:
+  home: https://github.com/BoldingBruggeman/eat
+  summary: Ensemble and Assimilation Tool
+  description: |
+    EAT is a 1D testbed for physical-biogeochemical data assimilation
+    in marine and freshwater systems
+  license: GPL
+  doc_url: https://github.com/BoldingBruggeman/eat/wiki
+  dev_url: https://github.com/BoldingBruggeman/eat

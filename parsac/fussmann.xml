@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../client/config.xsd">
+  <transports>
+    <transport type="sqlite" path="not_in_use.db"/>
+  </transports>
+  <executable path="/g100/home/userexternal/icunico0/seamless-notebooks/setups/fussmann/model_noext.py" shell="True"/>
+  <setup path="/g100/home/userexternal/icunico0/seamless-notebooks/setups/fussmann/" exclude_files="" exclude_dirs=""/>
+  <parameters>
+    <parameter file="fabm_netcom_tot.yaml" variable="instances/D/parameters/dC1" minimum="0.05" maximum="2.0" />
+    <parameter file="fabm_netcom_tot.yaml" variable="instances/D/parameters/dC2" minimum="0.05" maximum="2.0" />
+    <parameter file="fabm_netcom_tot.yaml" variable="instances/D/parameters/dX1" minimum="0.05" maximum="1.0" />
+
+  </parameters>
+  <targets>
+    <!--example indicators-->
+    <!--1.Chlorophyll   dcm relaret dstart 365+182 (first july last year stop in 31 october +120) // time of max chl with a spinup of 1year -->  
+   <target name="chaos" expression="flag_chaos" path="result.nc"/>
+   <target name="neg" expression="flag_neg" path="result.nc"/>
+   <target name="ss" expression="flag_ss" path="result.nc"/>
+   <target name="extin" expression="flag_extin" path="result.nc"/>
+  </targets>
+</config>

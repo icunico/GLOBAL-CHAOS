@@ -1,0 +1,44 @@
+# This script is intended to be source'd, not executed
+
+set -e
+
+REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+
+#export FFLAGS='-fcheck=all -O0 -Wall -Wextra -g -cpp -DDEBUG -DQUICK'
+
+# Add additional FABM "institutes" (bfm, ecosmo, etc.) and their base directory on the line below.
+#FABM_ARGS="-DFABM_INSTITUTES=gotm;msi;ogs;spectral -DFABM_OGS_BASE=${REPO_DIR}/extern/ogs -DFABM_SPECTRAL_BASE=${REPO_DIR}/extern/fabm-spectral 
+#-DCMAKE_Fortran_COMPILER=gfortran  -DCMAKE_BUILD_TYPE=release"
+FABM_ARGS="-DFABM_INSTITUTES=gotm;msi;ogs;spectral;fussmann -DFABM_OGS_BASE=${REPO_DIR}/extern/ogs -DFABM_SPECTRAL_BASE=${REPO_DIR}/extern/fabm-spectral 
+-DFABM_FUSSMANN_BASE=${REPO_DIR}/extern/fussmann -DCMAKE_Fortran_COMPILER=gfortran  -DCMAKE_BUILD_TYPE=release"
+# Build pyfabm
+#WORK_DIR=mktemp -d
+WORK_DIR=${REPO_DIR}/work
+mkdir -p $WORK_DIR
+cd ${WORK_DIR}
+cmake ${REPO_DIR}/extern/fabm/src/drivers/python $FABM_ARGS -DCMAKE_INSTALL_PREFIX=/Users/ilariacunico/seamless-notebooks/work
+make  install
+#make -j4 install
+cd -
+rm -rf ${WORK_DIR}
+
+# Build gotm-fabm
+#WORK_DIR=mktemp -d
+mkdir -p $WORK_DIR
+cd ${WORK_DIR}
+cmake ${REPO_DIR}/extern/gotm -DFABM_BASE=${REPO_DIR}/extern/fabm $FABM_ARGS
+make -j4
+cp -v gotm ${REPO_DIR}/bin
+cd -
+rm -rf ${WORK_DIR}
+
+# Build eat
+#WORK_DIR=mktemp -d
+#cd ${WORK_DIR}
+#cmake ${REPO_DIR}/extern/eat -DFABM_BASE=${REPO_DIR}/extern/fabm $FABM_ARGS
+#make -j4 install
+#cd -
+#rm -rf ${WORK_DIR}
+
+cd ../..

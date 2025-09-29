@@ -1,0 +1,13 @@
+&nml_seamless_filter
+verbosity=2048
+/
+
+&nml_seamless_model
+verbosity=1024
+all_verbose=.false.
+/
+
+&nml_seamless_obs
+verbosity=2048
+obs_times_file='obs_2d.dat'
+/

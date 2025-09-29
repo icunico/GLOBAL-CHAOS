@@ -1,0 +1,2 @@
+slurmstepd: error: *** STEP 17561889.0 ON r505c05n04 FAILED (non-zero exit code or other failure mode) ***
+slurmstepd: error: *** REASON: RaisedSignal:15(Terminated) ***

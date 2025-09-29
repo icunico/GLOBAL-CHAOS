@@ -1,0 +1,713 @@
+!************************************************************************************!
+!***   The module that introduces the structure to work with the 3-stream light   ***!
+!*** TYPE(PAR) is the new type for that. It keeps reflectance, scattering, and    ***!
+!*** backscattering, together with cosines and three more parameters rd, rs, ru   ***!
+!*** as a single onject with subroutines to work with.                            ***!
+!***   These objects can be added, substracted, divided, multiplied, also can be  ***!
+!*** multiplied on real numbers.                                                  ***!
+!***   Any declared object MUST BE INITIALIZED. This can be done by the function  ***!
+!*** par(), which can either take two integers nw and nl (numbers of wavelengths) ***!
+!*** and vertical layers, or can clone an existing object. Also, you can call     ***!
+!*** a method: call p%par(nw,nl) or call p%init_par(nw,nl)                        ***!
+!***   When an object is destroyed, all inner strcutres are freed internally.     ***!
+!***   Scalar parameters vd, vs, vu and rd, rs, ru are set by default,            ***!
+!*** but can be modified using p%set('vd', value), etc; also, the value can be    ***!
+!*** requested by p%get1 (read this as 'get one').                                ***!
+!***   2D arrays of parameters a, b, bb, can be set or requested by p%set, p%get  ***!
+!*** either in the form p%set('a',values), or by indicating the wavelength number ***!
+!*** of depth layer number, or both.                                              ***!
+!***   It is possible to set a parameter to a constant value:                     ***!
+!*** call p%set_const('a', 1)                                                     ***!
+!*** OR reset to zeros: call p%reset                                              ***!
+!***   An object can print itself: p%print. Without arguments, this just prints,  ***!
+!*** or 3-symbol prefix can be given to be added before e.g. a: 123.              ***!
+!***   This is to print stuff like d/da: 123.                                     ***!
+!*** It is possible to use a subroutine for printing: call print_par(a+b)         ***!
+!************************************************************************************!
+
+MODULE Par_mod
+implicit none
+
+PUBLIC:: par, operator(+),  operator(-), operator(*), operator(/), print_par
+
+PRIVATE
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!These are the constructors. Use them as follows:
+!par:: p
+!call p%par(nw, nl)
+! OR
+!p = par(nw,nl)
+!OTHER constructors can be added, e.g., to convert something to a parameter object
+INTERFACE PAR
+    module procedure:: init_par
+    module procedure:: return_default_par
+    module procedure:: clone_par
+END INTERFACE PAR
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!These are overloaded operators
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+INTERFACE OPERATOR(+)              !add two objects, like p1+p2
+    module procedure:: add_pars
+END INTERFACE OPERATOR(+)
+
+INTERFACE OPERATOR(-)              !substract two objects, like p1-p2
+    module procedure:: subs_pars
+END INTERFACE OPERATOR(-)
+
+INTERFACE OPERATOR(*)              !multiply an object and a number, like 5+p or p+5. Only for real and dble.
+    module procedure:: par_times_x
+    module procedure:: par_times_x_real
+    module procedure:: x_times_par
+    module procedure:: x_times_par_real
+    module procedure:: par_times_par
+END INTERFACE OPERATOR(*)
+
+INTERFACE OPERATOR(/)             !divide an object on a number. Like p/8. Real or dble. 
+    module procedure:: par_div_x
+    module procedure:: par_div_x_real
+    module procedure:: par_div_par
+END INTERFACE OPERATOR(/)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!!!!!!!!!!!!!!!!!!!! The structure !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!This is the structure to contain parameters, together with subs to work with them
+TYPE PAR
+    integer:: n_wavelen, n_layers                                    !number of wavelength and number of layers
+    double precision, dimension(:,:), allocatable:: a, b, bb         !depth-dependent parameters
+    double precision:: vd, vs, vu, rd, rs, ru                        !scalar parameters
+
+    contains                                                         !inner subroutines
+
+    procedure, public:: init_par         !a constructor
+    final:: del_par                      !the destructor
+    generic, public:: set => set_2d, set_for, set_for1, set1, set_2d_real, set_for_real, set_for1_real, set1_real !different set mehods
+    generic, public:: get => get_2d, get_for       !several get methods
+    procedure, public :: get1                      !separate get-one-value function, to be used as a+p%get1('a',1,2) 
+    generic, public :: print => print_me, add_text !print the contents, simply or with a prefix
+    procedure, public :: reset                     !put zeros to all parameters
+    procedure, public :: set_const                 !set one array to contain constant value
+    !private methods, all within generic public ones declared above
+    procedure, private :: set_2d
+    procedure, private :: set_for
+    procedure, private :: set_for1
+    procedure, private :: set1
+    procedure, private :: set_2d_real
+    procedure, private :: set_for_real
+    procedure, private :: set_for1_real
+    procedure, private :: set1_real
+    procedure, private :: get_2d
+    procedure, private :: get_for
+    procedure, private :: print_me
+    procedure, private :: add_text
+END TYPE
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+CONTAINS
+
+!Initilaizer. Must be called prior to using the structure
+subroutine init_par(this, nw, nl)
+    class(par), intent(inout):: this
+    integer, intent(in):: nw, nl
+    this%n_wavelen = nw
+    this%n_layers = nl
+    allocate(this%a(nl,nw))
+    allocate(this%b(nl,nw))
+    allocate(this%bb(nl,nw))
+    !default values
+    this%rd = 1.0
+    this%rs = 1.5
+    this%ru = 3.0
+    this%vs = 0.83
+    this%vu = 0.4
+    this%vd = 0.625 !some value from getmud 
+end subroutine init_par
+
+!Function as the initializer. Use this as p=par(nw,nl).
+function return_default_par(nw, nl)
+    type(par):: return_default_par
+    integer, intent(in):: nw, nl
+    call return_default_par%init_par(nw, nl)
+end function return_default_par
+
+!Function as the initializer. Clones an object
+function clone_par(p)
+    type(par), intent(in):: p
+    type(par):: clone_par
+    call clone_par%init_par(p%n_wavelen, p%n_layers)
+    clone_par%a = p%a
+    clone_par%b = p%b
+    clone_par%bb = p%bb
+    clone_par%vd = p%vd
+    clone_par%vs = p%vs
+    clone_par%vu = p%vu
+    clone_par%rd = p%rd
+    clone_par%rs = p%rs
+    clone_par%ru = p%ru
+end function clone_par
+
+!destructor. Is called automatically when an object is destroyed
+subroutine del_par(this)
+    type(par), intent(inout):: this
+    if (allocated(this%a)) then 
+       deallocate(this%a)
+    else
+       write(*,*) 'Trying to deallocate unallocated this%a'
+    endif
+    if (allocated(this%b)) then 
+       deallocate(this%b)
+    else
+       write(*,*) 'Trying to deallocate unallocated this%b'
+    endif
+    if (allocated(this%bb)) then 
+       deallocate(this%bb)
+    else
+       write(*,*) 'Trying to deallocate unallocated this%bb'
+    endif
+end subroutine del_par
+
+!to set a constant value of a parameter
+subroutine set_const(this, what, value)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision:: value
+    select case(trim(what))
+    case('a')
+        this%a = value
+    case('b')
+        this%b = value
+    case('bb')
+        this%bb = value
+    case('vd')
+        this%vd = value
+    case('vs')
+        this%vs = value
+    case('vu')
+        this%vu = value
+    case('rd')
+        this%rd = value
+    case('rs')
+        this%rs = value
+    case('ru')
+        this%ru = value
+    case default
+        print*, 'Error: wrong "what" parameter ', what, ' in set_const'
+    end select
+end subroutine set_const
+
+!partial case of the 'set' routine. Sets the 2D wavelength-layers array to one of the parameters a, b, bb, vd
+subroutine set_2d(this, what, values)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, dimension(:,:):: values
+    integer, dimension(2):: theshape
+    theshape = shape(values)
+    if(theshape(1).ne.this%n_layers) print*, 'Error: wrong dim 1 of "values'
+    if(theshape(2).ne.this%n_wavelen) print*, 'Error: wrong dim 2 of "values'
+    select case(trim(what))
+    case('a')
+        this%a = values
+    case('b')
+        this%b = values
+    case('bb')
+        this%bb = values
+    case default
+        print*, 'Error: wrong "what" parameter ', what, ' in set_2d'
+    end select
+end subroutine set_2d
+
+subroutine set_2d_real(this, what, values)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    real, dimension(:,:):: values
+  call this%set_2d(what, dble(values))
+end subroutine set_2d_real
+
+!partial case of the 'set' routine. Sets either the 1D for layers at fixed wavelength, or vice versa, or a single value for wv and layer,
+!or one of vs, vu, rd, rs, ru for all wavelength
+subroutine set_for(this, what, values, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, dimension(:), intent(in):: values
+    integer, intent(in), optional:: wln, layern
+    if(present(wln).and. .not. present(layern)) then
+        select case(trim(what))
+        case('a')
+            this%a(:,wln) = values
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case('b')
+            this%b(:,wln) = values
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case('bb')
+            this%bb(:,wln) = values
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case default
+            print*, 'Error: wrong "what" parameter ', what, ' in set_for #1'
+        end select
+    endif
+    if(.not. present(wln).and. present(layern)) then
+        if(size(values).ne.this%n_wavelen) print*, 'Error: wrong dim of "values"'
+        select case(trim(what))
+        case('a')
+            this%a(layern,:) = values
+        case('b')
+            this%b(layern,:) = values
+        case('bb')
+            this%bb(layern,:) = values
+        case default
+            print*, 'Error: wrong "what" parameter ', what, ' in set_for #2'
+        end select
+    endif
+    if(present(wln).and. present(layern)) then
+        select case(trim(what))
+        case('a')
+            this%a(layern,wln) = values(1)
+        case('b')
+            this%b(layern,wln) = values(1)
+        case('bb')
+            this%bb(layern,wln) = values(1)
+        case default
+            print*, 'Error: wrong "what" parameter ', what, ' in set_for #3'
+        end select
+    endif
+    if(.not.(present(wln) .or. present(layern))) then
+        if(size(values).ne.this%n_wavelen) print*, 'Error: wrong dim of "values"'
+        select case(trim(what))
+        case('vd')
+            this%vd= values(1)
+        case('vs')
+            this%vs= values(1)
+        case('vu')
+            this%vu= values(1)
+        case('rs')
+            this%rs= values(1)
+        case('ru')
+            this%ru= values(1)
+        case('rd')
+            this%rd= values(1)
+        case default
+            print*, 'Error: wrong "what" parameter ', what, ' in set_for #4'
+        end select
+    endif
+end subroutine set_for
+
+!partial case of the 'set' routine. Sets either the 1D for layers at fixed wavelength, or vice versa, or a single value for wv and layer,
+!or one of vs, vu, rd, rs, ru for all wavelength
+subroutine set_for1(this, what, value)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, intent(in):: value
+    select case(trim(what))
+    case('vd')
+        this%vd= value
+    case('vs')
+        this%vs= value
+    case('vu')
+        this%vu= value
+    case('rs')
+        this%rs= value
+    case('ru')
+        this%ru= value
+    case('rd')
+        this%rd= value
+    case default
+        print*, 'Error: wrong "what" parameter ', what, ' in set_for1'
+    end select
+end subroutine set_for1
+
+!partial case of the 'set' routine. Sets either the 1D for layers at fixed wavelength, or vice versa, or a single value for wv and layer,
+!or one of vs, vu, rd, rs, ru for all wavelength
+subroutine set_for1_real(this, what, value)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    real, intent(in):: value
+    select case(trim(what))
+    case('vd')
+        this%vd= value
+    case('vs')
+        this%vs= value
+    case('vu')
+        this%vu= value
+    case('rs')
+        this%rs= value
+    case('ru')
+        this%ru= value
+    case('rd')
+        this%rd= value
+    case default
+        print*, 'Error: wrong "what" parameter ', what, ' in set_for1_real'
+    end select
+end subroutine set_for1_real
+
+subroutine set_for_real(this, what, values, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    real, dimension(:), intent(in):: values
+    integer, intent(in), optional:: wln, layern
+  call this%set_for(what, dble(values), wln, layern)
+end subroutine set_for_real
+
+!partial case of the 'set' routine. Sets a single value for wv and layer. Does almost the same as set1d.
+subroutine set1(this, what, value, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, intent(in):: value
+    integer, intent(in):: wln, layern
+        select case(trim(what))
+        case('a')
+            this%a(layern,wln) = value
+        case('b')
+            this%b(layern,wln) = value
+        case('bb')
+            this%bb(layern,wln) = value
+        case default
+            print*, 'Error: wrong "what" parameter ', what, ' in set1'
+        end select
+end subroutine set1
+
+subroutine set1_real(this, what, value, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    real, intent(in):: value
+    integer, intent(in):: wln, layern
+  call this%set1(what, dble(value), wln, layern)
+end subroutine set1_real
+
+!partial case of the 'get' routine. Gets the 2D wavelength-layers array of one of the parameters a, b, bb, vd
+subroutine get_2d(this, what, values)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, dimension(:,:), intent(out):: values
+    integer, dimension(2):: theshape
+    theshape = shape(values)
+    if(theshape(1).ne.this%n_layers) print*, 'Error: wrong dim 1 of "values'
+    if(theshape(2).ne.this%n_wavelen) print*, 'Error: wrong dim 2 of "values'
+    select case(trim(what))
+    case('a')
+        values = this%a
+    case('b')
+        values = this%b
+    case('bb')
+        values = this%bb
+    case('vd')
+        values = this%vd
+    case default
+        print*, 'Error: wrong "what" parameter'
+    end select
+end subroutine get_2d
+
+!partial case of the 'get' routine. Gets either the 1D for layers at fixed wavelength, or vice versa, or a single value for wv and layer,
+!or one of vs, vu, rd, rs, ru for all wavelength
+subroutine get_for(this, what, values, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    double precision, dimension(:), intent(out):: values
+    integer, intent(in), optional:: wln, layern
+    if(present(wln).and. .not. present(layern)) then
+        select case(trim(what))
+        case('a')
+            values = this%a(:,wln)
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case('b')
+            values = this%b(:,wln)
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case('bb')
+            values = this%bb(:,wln)
+            if(size(values).ne.this%n_layers) print*, 'Error: wrong dim of "values"'
+        case default
+            print*, 'Error: wrong "what" parameter'
+        end select
+    endif
+    if(.not. present(wln).and. present(layern)) then
+        if(size(values).ne.this%n_wavelen) print*, 'Error: wrong dim of "values"'
+        select case(trim(what))
+        case('a')
+            values = this%a(layern,:)
+        case('b')
+            values = this%b(layern,:)
+        case('bb')
+            values = this%bb(layern,:)
+        case default
+            print*, 'Error: wrong "what" parameter'
+        end select
+    endif
+    if(present(wln).and. present(layern)) then
+        select case(trim(what))
+        case('a')
+            values(1) = this%a(layern,wln)
+        case('b')
+            values(1) = this%b(layern,wln)
+        case('bb')
+            values(1) = this%bb(layern,wln)
+        case default
+            print*, 'Error: wrong "what" parameter'
+        end select
+    endif
+    if(.not.(present(wln) .or. present(layern))) then
+        select case(trim(what))
+        case('vd')
+            values(1) = this%vd
+        case('vs')
+            values(1) = this%vs
+        case('vu')
+            values(1) = this%vu
+        case('rs')
+            values(1) = this%rs
+        case('ru')
+            values(1) = this%ru
+        case('rd')
+            values(1) = this%rd
+        case default
+            print*, 'Error: wrong "what" parameter'
+        end select
+    endif
+end subroutine get_for
+
+!a function to get a single chosen value for a given wavlength number and layer number
+function get1(this, what, wln, layern)
+    class(par), intent(inout):: this
+    character(len=*), intent(in):: what
+    integer, intent(in), optional:: wln
+    integer, intent(in), optional:: layern
+    double precision:: get1
+    if(present(wln).and.present(layern)) then !return a wavelength- and depth-dependent value
+        select case(trim(what))
+        case('a')
+            get1 = this%a(layern,wln)
+        case('b')
+            get1 = this%b(layern,wln)
+        case('bb')
+            get1 = this%bb(layern,wln)
+        case('vd')
+            get1 = this%vd
+        case('vs')
+            get1 = this%vs
+        case('vu')
+            get1 = this%vu
+        case('rd')
+            get1 = this%rd
+        case('rs')
+            get1 = this%rs
+        case('ru')
+            get1 = this%ru
+        case default
+            print*, 'Error: wrong "what" parameter ', what, 'get1 #2'
+        end select
+    else !if at least one is absent, then a constant parameter is required
+        select case(trim(what))
+        case('vd')
+            get1 = this%vd
+        case('vs')
+            get1 = this%vs
+        case('vu')
+            get1 = this%vu
+        case('rd')
+            get1 = this%rd
+        case('rs')
+            get1 = this%rs
+        case('ru')
+            get1 = this%ru
+        case default
+            print*, 'Error: wrong "what" parameter ', what, 'get1 #3'
+        end select
+    endif
+end function get1
+
+function add_pars(p1,p2)
+ type(par), intent(in):: p1, p2
+ type(par):: add_pars
+    add_pars=par(p1)
+    add_pars%a  = p1%a  + p2%a 
+    add_pars%b  = p1%b  + p2%b 
+    add_pars%bb = p1%bb + p2%bb
+end function add_pars
+
+function subs_pars(p1,p2)
+ type(par), intent(in):: p1, p2
+ type(par):: subs_pars
+    subs_pars=par(p1)
+    subs_pars%a  = p1%a  - p2%a 
+    subs_pars%b  = p1%b  - p2%b 
+    subs_pars%bb = p1%bb - p2%bb
+end function subs_pars
+
+function par_times_x(p,x)
+ type(par), intent(in):: p
+ double precision, intent(in):: x
+ type(par):: par_times_x 
+    par_times_x = par(p)
+    par_times_x%a  = p%a  * x
+    par_times_x%b  = p%b  * x
+    par_times_x%bb = p%bb * x
+end function par_times_x
+
+function x_times_par(x,p)
+ double precision, intent(in):: x
+ type(par), intent(in):: p
+ type(par):: x_times_par 
+ x_times_par = par_times_x(p,x)
+end function x_times_par
+
+function par_times_x_real(p,x)
+ type(par), intent(in):: p
+ real, intent(in):: x
+ type(par):: par_times_x_real 
+    par_times_x_real = p * dble(x)
+end function par_times_x_real
+
+function x_times_par_real(x,p)
+ real, intent(in):: x
+ type(par), intent(in):: p
+ type(par):: x_times_par_real 
+ x_times_par_real = par_times_x(p,dble(x))
+end function x_times_par_real
+
+function par_times_par(p1,p2)
+ type(par), intent(in):: p1,p2
+ type(par):: par_times_par 
+    par_times_par = par(p1)
+    par_times_par%a  = p1%a  * p2%a 
+    par_times_par%b  = p1%b  * p2%b 
+    par_times_par%bb = p1%bb * p2%bb
+end function par_times_par
+
+function par_div_x(p,x)
+ type(par), intent(in):: p
+ double precision, intent(in):: x
+ type(par):: par_div_x 
+    par_div_x = par(p)
+    par_div_x%a  = p%a  / x
+    par_div_x%b  = p%b  / x
+    par_div_x%bb = p%bb / x
+end function par_div_x
+
+function par_div_x_real(p,x)
+ type(par), intent(in):: p
+ real, intent(in):: x
+ type(par):: par_div_x_real 
+    par_div_x_real = p / dble(x)
+end function par_div_x_real
+
+function par_div_par(p1,p2)
+ type(par), intent(in):: p1,p2
+ type(par):: par_div_par 
+    par_div_par = par(p1)
+    par_div_par%a  = p1%a  / p2%a
+    par_div_par%b  = p1%b  / p2%b
+    par_div_par%bb = p1%bb / p2%bb
+end function par_div_par
+
+subroutine print_me(this)
+    class(par), intent(inout):: this
+    integer:: wv
+    do wv=1,this%n_wavelen
+        print*, 'Wavelength #', wv, ':'
+        print 123, 'a ', this%a(:,wv)
+        print 123, 'b ', this%b(:,wv)
+        print 123, 'bb', this%bb(:,wv)
+        print 124, 'vd,vs,vu', this%vd, this%vs, this%vu
+        print 124, 'rd,rs,ru', this%rd, this%rs, this%ru
+    enddo
+123 format (2X,A2,":",1X,666(F9.6,1X))       
+124 format (2X,A8,":",1X,666(F9.6,1X))       
+end subroutine print_me
+
+subroutine add_text(this, text)
+    class(par), intent(inout):: this
+    character(len=3), intent(in):: text
+    integer:: wv
+    do wv=1,this%n_wavelen
+        print*, 'Wavelength #', wv, ':'
+        print 125, text//'a ', this%a(:,wv)
+        print 125, text//'b ', this%b(:,wv)
+        print 125, text//'bb', this%bb(:,wv)
+        print 126, text//'vd,vs,vu', this%vd, this%vs, this%vu
+        print 126, text//'rd,rs,ru', this%rd, this%rs, this%ru
+    enddo
+125 format (2X,A5,":",1X,666(F9.6,1X))       
+126 format (2X,A11,":",1X,666(F9.6,1X))       
+end subroutine add_text
+
+subroutine print_par(p, text)
+type(par), intent(in):: p
+character(len=3), optional:: text
+type(par):: tmp
+tmp=par(p)
+if(present(text)) then
+    call tmp%add_text(text)
+else
+    call tmp%print
+endif
+end subroutine print_par
+
+subroutine reset(this)
+    class(par), intent(inout):: this
+    this%a=0.0d0
+    this%b=0.0d0
+    this%bb=0.0d0
+end subroutine reset
+
+END MODULE Par_mod
+
+SUBROUTINE TEST_par
+use par_mod
+type(par):: p, p2
+p=par(1,1)
+call p%set('a',[1.0],wln=1)
+call p%set('b',[2.0],wln=1)
+call p%set('bb',[3.0],wln=1)
+call p%set('vd',4.0d0)
+call p%set('vs',5.0)
+call p%set('vu',[6.0])
+call p%set('rd',[7.0])
+call p%set('rs',[8.0])
+call p%set('ru',[9.0])
+print*, 'initial p:'
+call p%print
+p2=par(p)
+p2=p2*5.0d0
+print*, 'p*5:'
+call p2%print
+p2=1./5.*p2;
+print*, 'p2=p/5:'
+call p2%print
+p2=p+0.7*p2
+print*, 'p+0.7p2:'
+call p2%print
+p2 = p-p
+print*, 'null:'
+call p2%print
+p2 = p/8.
+print*, 'p/8:'
+call p2%print
+print*, '================'
+print*, 'Here is p:'
+call p%print
+print*, '///'
+call p2%print
+print*, 'test ='
+p2=p
+print*, 'p2==p?'
+call p2%print
+p2=p2*1.1
+print*, 'p2\=p?'
+call p2%print
+call p%print
+print*, '=========='
+print*, 'a=',p%get1('a',1,1)
+print*, 'vd=',p%get1('vd')
+print*, 'RESET:'
+call p2%reset
+call p2%print
+call p%set_const('a', 42.0d0)
+call p%print('>  ')
+print*, '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+call print_par(p/p)
+call print_par((p+0.2*p)/p)
+END SUBROUTINE TEST_par
+
+!PROGRAM TEST
+!call TEST_par
+!END PROGRAM TEST

@@ -1,0 +1,13 @@
+#! /bin/bash
+WRKDIR=$PWD
+
+pickle_file=fussmann.pickle
+xml_file=fussmann.xml
+echo xmlfile $xml_file
+echo picklefile $pickle_file
+
+rm -rf $WRKDIR/????
+rm -rf $WRKDIR/?????
+parsac sensitivity sample $xml_file $pickle_file --dir $WRKDIR random 1
+
+

@@ -1,0 +1,8 @@
+*.stderr
+*.stdout
+ens_??_*
+obs_*.dat
+true_*.dat
+*.nc
+
+logs/

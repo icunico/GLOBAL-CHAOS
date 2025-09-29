@@ -1,0 +1,13 @@
+[submodule "extern/datetime-fortran"]
+	path = extern/datetime-fortran
+	url = ../../wavebitscientific/datetime-fortran.git
+[submodule "extern/gotm"]
+	path = extern/gotm
+	url = ../../gotm-model/code.git
+	branch = v6.0
+[submodule "extern/pdaf"]
+	path = extern/pdaf
+	url = ../pdaf-temp.git
+[submodule "extern/fabm"]
+	path = extern/fabm
+	url = ../../fabm-model/fabm-plus.git

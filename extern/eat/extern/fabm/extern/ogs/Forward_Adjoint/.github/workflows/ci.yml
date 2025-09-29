@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-11, macos-latest, windows-latest]
+        compiler_name: [gcc10, gcc13, intel]
+        include:
+          - compiler_name: gcc13
+            compiler: gcc
+            compiler_version: 13
+          - compiler_name: gcc10
+            compiler: gcc
+            compiler_version: 10
+          - compiler_name: intel
+            compiler: intel
+            compiler_version: 2023.2
+          - os: ubuntu-latest
+            generator: "Unix Makefiles"
+          - os: macos-latest
+            generator: "Unix Makefiles"
+          - os: macos-11
+            generator: "Unix Makefiles"
+          - os: windows-latest
+            generator: "MinGW Makefiles"
+        exclude:
+          - os: macos-latest
+            compiler_name: intel
+          - os: macos-latest
+            compiler_name: gcc10
+          - os: macos-11
+            compiler_name: intel
+          - os: macos-11
+            compiler_name: gcc13
+    steps:
+    - name: Prepare the virtual machine
+      uses: fortran-lang/setup-fortran@v1
+      with:
+        compiler: ${{ matrix.compiler }}
+        version: ${{ matrix.compiler_version }}
+
+    - name: Check out repository code
+      uses: actions/checkout@v4
+
+    - name: Configure and Build Project
+      run: |
+        cmake -G "${{ matrix.generator }}" -B build
+        cmake --build build
+
+    - name: Run tests
+      working-directory: build
+      run: ctest
+

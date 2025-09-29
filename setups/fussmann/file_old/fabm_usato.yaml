@@ -1,0 +1,89 @@
+check_conservation: false
+require_initialization: true
+instances:
+  P1:
+    long_name: P1
+    model: fussmann/P1
+    parameters:
+      r1:  2.5      
+      r2:  2.5      
+      r3:  2.5      
+      K1:  1.0     
+      K2:  1.0     
+      K3:  1.0     
+    initialization:
+      DW1: 0.5 
+      DW2: 0.5 
+      DW3: 0.5 
+    coupling:
+  C1:
+    long_name: C1 
+    model: fussmann/C1
+    parameters:
+      aP1C1:   7.5
+      aP1C2:   2.5
+      aP2C1:   5.0
+      aP2C2:   5.0
+      aP3C1:   2.5
+      aP3C2:   7.5
+      bP1C1:  5.0
+      bP1C2:  5.0
+      bP2C1:  5.0
+      bP2C2:  5.0
+      bP3C1:  5.0
+      bP3C2:  5.0
+      dC1:  0.5
+      dC2:  0.5
+    initialization:
+      DWC1:  0.5
+      DWC2:  0.5
+    coupling:
+      DWP1: P1/DW1
+      DWP2: P1/DW2
+      DWP3: P1/DW3
+  X:
+    long_name: X 
+    model: fussmann/X
+    parameters:
+      aP1X1:   0.25
+      aP2X1:   0.25
+      aP3X1:   0.25
+      aC1X1:   1.0
+      aC2X1:   1.0
+      bP1X1:   0.5
+      bP2X1:   0.5
+      bP3X1:   0.5
+      bC1X1:   0.5
+      bC2X1:   0.5
+      dX1:  0.1
+    initialization:
+      DWX1:  0.0
+    coupling:
+      DWP1: P1/DW1        
+      DWP2: P1/DW2        
+      DWP3: P1/DW3        
+      DWC1: C1/DWC1
+      DWC2: C1/DWC2
+  Y:
+    long_name: Y
+    model: fussmann/Y
+    parameters:
+      aX1Y1:   0.25
+      bX1Y1:   0.50
+      dY1:  0.05
+    initialization:
+      DWY1:  0.5
+    coupling:
+      DWX1: X/DWX1
+  Z:
+    long_name: Z
+    model: fussmann/Z
+    parameters:
+      aY1Z1:   0.5
+  #    aY1Z1:   0.125
+      bY1Z1:   0.25
+      dZ1:  0.1
+    initialization:
+      DWZ1:  0.5
+    coupling:
+      DWY1: Y/DWY1

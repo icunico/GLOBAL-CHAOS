@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../client/config.xsd">
+  <transports>
+	  <transport type="sqlite" path="/g100_scratch/userexternal/gocchipi/BOUSSOLE_CALIBRATION/boussole_calibration.db"/>
+  </transports>
+  <executable path="/g100_scratch/userexternal/gocchipi/TEMP/seamless-notebooks/setups/setup_BFM1D_BOUSSOLE/gotm.xx --ignore_unknown_config" shell="True"/>
+  <setup path="/g100_scratch/userexternal/gocchipi/TEMP/seamless-notebooks/setups/setup_BFM1D_BOUSSOLE" exclude_files="" exclude_dirs=""/>
+  <parameters>
+<parameter file="fabm.yaml" variable="instances/light/parameters/EPS0r" minimum="0.004" maximum="0.076" />
+<parameter file="fabm.yaml" variable="instances/light/parameters/pEIR_eow" minimum="0.04" maximum="0.76" />
+<parameter file="fabm.yaml" variable="instances/Z5/parameters/p_pu" minimum="0.35" maximum="0.95" />
+<parameter file="fabm.yaml" variable="instances/P1/parameters/p_qlcPPY" minimum="0.002" maximum="0.038" />
+<parameter file="fabm.yaml" variable="instances/P1/parameters/p_sum" minimum="1.25" maximum="4.75" />
+<parameter file="fabm.yaml" variable="instances/P2/parameters/p_qlcPPY" minimum="0.005" maximum="0.038" />
+<parameter file="fabm.yaml" variable="instances/P2/parameters/p_sum" minimum="1.25" maximum="4.75" />
+<parameter file="fabm.yaml" variable="instances/P3/parameters/p_qlcPPY" minimum="0.005" maximum="0.038" />
+<parameter file="fabm.yaml" variable="instances/P3/parameters/p_sum" minimum="1.35" maximum="6.65" />
+<parameter file="fabm.yaml" variable="instances/P4/parameters/p_qlcPPY" minimum="0.005" maximum="0.038" />
+<parameter file="fabm.yaml" variable="instances/P4/parameters/p_sum" minimum="1.15" maximum="2.65" />
+  </parameters>
+  <observations>
+	  <variable source="/g100_scratch/userexternal/gocchipi/TEMP/seamless-notebooks/parsac/TotalCHLA.obs" modelpath="result.nc" modelvariable="(P1_Chl+P2_Chl+P3_Chl+P4_Chl)" spinupyears="1" logscale="True"/>
+  </observations>
+  <extra_outputs>
+  </extra_outputs>
+</config>
