@@ -13,7 +13,7 @@ tol = 0.4  # tolleranza per il calcolo Lyap_tau
 
 sigma = 10.0
 beta = 8.0 / 3.0
-rho_values = np.linspace(0, 40, 10)
+rho_values = np.linspace(25, 40, 10)
 
 print("=== PARAMETRI SIMULAZIONE ===")
 print(f"Numero di passi: {num_steps}")
@@ -26,59 +26,17 @@ print(f"Valori di rho: {rho_values}")
 print()
 
 # ===============================
-# Sistema di Lorenz originale (full 3D)
-# ===============================
-def lorenz_system(x, rho):
-    """
-    Input:
-        x: array numpy 1D di dimensione 3, stato del sistema [X, Y, Z]
-        rho: float, parametro del sistema di Lorenz
-    Output:
-        array numpy 1D di dimensione 3, derivate del sistema di Lorenz [dX/dt, dY/dt, dZ/dt]
-    """
-    dX = sigma * (x[1] - x[0])  # dX/dt
-    dY = x[0] * (rho - x[2]) - x[1]  # dY/dt
-    dZ = x[0] * x[1] - beta * x[2]  # dZ/dt
-    return np.array([dX, dY, dZ])
-
-def create_3d_embedding(trajectory_1d, tau, embedding_dim=3):
-    """
-    Input:
-        trajectory_1d: array numpy 1D, serie temporale di una singola componente
-        tau: int, delay time per l'embedding
-        embedding_dim: int, dimensione dello spazio di embedding (default=3)
-    Output:
-        array numpy 2D, traiettoria embedded di dimensione (n_points x embedding_dim)
-        dove n_points = len(trajectory_1d) - (embedding_dim-1)*tau
-    """
-    n_points = len(trajectory_1d) - (embedding_dim - 1) * tau
-    
-    if n_points <= 0:
-        raise ValueError(f"Tau troppo grande: tau={tau}, lunghezza={len(trajectory_1d)}, dim={embedding_dim}")
-    
-    embedded_traj = np.zeros((n_points, embedding_dim))
-    
-    for i in range(n_points):
-        for j in range(embedding_dim):
-            embedded_traj[i, j] = trajectory_1d[i + j * tau]
-    
-    print(f"  Embedding creato: {len(trajectory_1d)} -> {embedded_traj.shape[0]} punti")
-    print(f"  Parametri: tau={tau}, dim={embedding_dim}")
-    
-    return embedded_traj
-
-# ===============================
-# Sistema di Lorenz per embedding (manteniamo per compatibilità)
+# Sistema di Lorenz con embedding
 # ===============================
 def f_map(x, rho):
     """
     Input:
-        x: array numpy 1D di dimensione 3, stato embedded del sistema
+        x: array numpy 1D di dimensione 3, stato del sistema (embedding 3D della componente X)
         rho: float, parametro del sistema di Lorenz
     Output:
-        array numpy 1D di dimensione 3, derivate fittizie per il sistema embedded
+        array numpy 1D di dimensione 3, derivate del sistema di Lorenz [dx/dt, dy/dt, dz/dt]
     """
-    # Per embedding, usiamo una dinamica fittizia basata sul sistema di Lorenz
+    # x è ora un embedding 3D della componente X
     dx = sigma * (x[1] - x[0])
     dy = x[0] * (rho - x[2]) - x[1]
     dz = x[0] * x[1] - beta * x[2]
@@ -221,55 +179,31 @@ def lyap_tau_continuous_multi(recurrence_pairs, DELTA, delta0, tol=0.2):
     return lyap_val
 
 # ===============================
-# Loop su rho (aggiornato per embedding)
+# Loop su rho (aggiornato)
 # ===============================
 print("=== INIZIO SIMULAZIONI ===")
 lyap_trad_list = []
 lyap_tau_list = []
 
-# Parametri embedding
-embedding_tau = 10  # delay time per l'embedding
-embedding_dim = 3   # dimensione embedding
-component_to_embed = 0  # componente da embeddare (0=X, 1=Y, 2=Z)
-
-print(f"Parametri embedding: tau={embedding_tau}, dim={embedding_dim}, componente={component_to_embed}")
-print()
-
 for i, rho in enumerate(rho_values):
     print(f"\n--- Simulazione {i+1}/{len(rho_values)}: rho = {rho:.2f} ---")
     
-    # Genera traiettoria completa del sistema di Lorenz
-    print("Generando traiettoria completa del sistema di Lorenz...")
-    lorenz_series = [np.array([1.0, 1.0, 1.0])]  # condizioni iniziali [X, Y, Z]
+    # Genera traiettoria
+    print("Generando traiettoria del sistema di Lorenz...")
+    x_series = [np.array([1.0, 1.0, 1.0])]  # embedding iniziale della componente X
     for step in range(num_steps):
         if step % 2000 == 0:
             print(f"  Passo {step}/{num_steps}")
-        x_new = lorenz_series[-1] + dt * lorenz_system(lorenz_series[-1], rho)
-        lorenz_series.append(x_new)
-    lorenz_series = np.array(lorenz_series)
-    print(f"Traiettoria completa generata: {len(lorenz_series)} punti")
-    
-    # Estrai la componente desiderata
-    component_series = lorenz_series[:, component_to_embed]  # estrai X, Y o Z
-    print(f"Componente {['X', 'Y', 'Z'][component_to_embed]} estratta: {len(component_series)} punti")
-    
-    # Crea embedding 3D dalla singola componente
-    print(f"Creando embedding 3D dalla componente {['X', 'Y', 'Z'][component_to_embed]}...")
-    try:
-        x_series = create_3d_embedding(component_series, embedding_tau, embedding_dim)
-        print(f"Embedding 3D creato: {x_series.shape}")
-    except ValueError as e:
-        print(f"Errore nell'embedding: {e}")
-        lyap_trad_list.append(np.nan)
-        lyap_tau_list.append(np.nan)
-        continue
+        x_new = x_series[-1] + dt * f_map(x_series[-1], rho)
+        x_series.append(x_new)
+    x_series = np.array(x_series)
+    print(f"Traiettoria generata: {len(x_series)} punti")
 
-    # Lyapunov tradizionale (usando il sistema originale per il calcolo del Jacobiano)
+    # Lyapunov tradizionale (massimo)
     print("Calcolando Lyapunov tradizionale...")
     v = np.array([1.0, 0.0, 0.0])
     lyap_sum = 0
-    # Usa la traiettoria originale per il Jacobiano
-    for x in lorenz_series:
+    for x in x_series:
         J = jacobian(x, rho)
         v = v + dt * J @ v
         norm_v = np.linalg.norm(v)
@@ -279,8 +213,8 @@ for i, rho in enumerate(rho_values):
     lyap_trad_list.append(lyap_trad)
     print(f"Lyapunov tradizionale: {lyap_trad:.4f}")
 
-    # Lyap_tau (usando l'embedding)
-    print("Calcolando Lyapunov tau su embedding...")
+    # Lyap_tau (aggiornato per usare tutte le ricorrenze)
+    print("Calcolando Lyapunov tau...")
     recurrence_pairs = select_y_by_recurrence(x_series, delta0, tol, t_steps)
     if recurrence_pairs:
         lyap_tau_val = lyap_tau_continuous_multi(recurrence_pairs, DELTA, delta0, tol=tol)
@@ -304,9 +238,8 @@ plt.ylabel("Lyapunov exponent")
 plt.ylim(-5, 5)
 plt.legend()
 plt.grid(True)
-component_name = ['X', 'Y', 'Z'][component_to_embed]
-plt.title(f"Lyapunov vs rho (Embedding 3D della componente {component_name})")
-plt.savefig(f"lyapunov_vs_rho_embedding_{component_name}.png", dpi=300, bbox_inches='tight')
+plt.title("Lyapunov vs rho (Lorenz system con embedding della componente X)")
+plt.savefig("lyapunov_vs_rho_embedding.png", dpi=300, bbox_inches='tight')
 plt.close()
-print(f"Grafico salvato come 'lyapunov_vs_rho_embedding_{component_name}.png'")
+print("Grafico salvato come 'lyapunov_vs_rho_embedding.png'")
 print("=== SIMULAZIONE COMPLETATA ===")
