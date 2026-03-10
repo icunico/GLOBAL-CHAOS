@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 # ===============================
 # Parametri generali
 # ===============================
-num_steps = 10000
+num_steps = 100000
 t_steps = 300
 DELTA = 1.0
 delta0 = 0.1
@@ -13,7 +13,10 @@ tol = 0.4  # tolleranza per il calcolo Lyap_tau
 
 sigma = 10.0
 beta = 8.0 / 3.0
-rho_values = np.linspace(0, 40, 10)
+rho_values = np.linspace(0, 40, 100)
+
+# Flag per scegliere il metodo
+USE_EMBEDDING = False  # Se True usa embedding, se False usa output diretto del modello
 
 print("=== PARAMETRI SIMULAZIONE ===")
 print(f"Numero di passi: {num_steps}")
@@ -23,6 +26,7 @@ print(f"delta0 (soglia ricorrenze): {delta0}")
 print(f"Tolleranza: {tol}")
 print(f"dt: {dt}")
 print(f"Valori di rho: {rho_values}")
+print(f"Metodo: {'Embedding 3D' if USE_EMBEDDING else 'Output diretto del modello'}")
 print()
 
 # ===============================
@@ -99,9 +103,9 @@ def jacobian(x, rho):
     ])
 
 # ===============================
-# Selezione ricorrenze (max 10)
+# Selezione ricorrenze (max 200)
 # ===============================
-def select_y_by_recurrence(x_vals, delta0, tol, t_steps, max_recurrences=50):
+def select_y_by_recurrence(x_vals, delta0, tol, t_steps, max_recurrences=200):
     """
     Input:
         x_vals: array numpy 2D, traiettoria del sistema (num_points x 3)
@@ -221,18 +225,21 @@ def lyap_tau_continuous_multi(recurrence_pairs, DELTA, delta0, tol=0.2):
     return lyap_val
 
 # ===============================
-# Loop su rho (aggiornato per embedding)
+# Loop su rho (con flag per scegliere il metodo)
 # ===============================
 print("=== INIZIO SIMULAZIONI ===")
 lyap_trad_list = []
 lyap_tau_list = []
 
-# Parametri embedding
+# Parametri embedding (usati solo se USE_EMBEDDING = True)
 embedding_tau = 10  # delay time per l'embedding
 embedding_dim = 3   # dimensione embedding
 component_to_embed = 0  # componente da embeddare (0=X, 1=Y, 2=Z)
 
-print(f"Parametri embedding: tau={embedding_tau}, dim={embedding_dim}, componente={component_to_embed}")
+if USE_EMBEDDING:
+    print(f"Parametri embedding: tau={embedding_tau}, dim={embedding_dim}, componente={component_to_embed}")
+else:
+    print("Usando output diretto del sistema di Lorenz (X, Y, Z)")
 print()
 
 for i, rho in enumerate(rho_values):
@@ -242,33 +249,42 @@ for i, rho in enumerate(rho_values):
     print("Generando traiettoria completa del sistema di Lorenz...")
     lorenz_series = [np.array([1.0, 1.0, 1.0])]  # condizioni iniziali [X, Y, Z]
     for step in range(num_steps):
-        if step % 2000 == 0:
+        if step % 20000 == 0:
             print(f"  Passo {step}/{num_steps}")
         x_new = lorenz_series[-1] + dt * lorenz_system(lorenz_series[-1], rho)
         lorenz_series.append(x_new)
     lorenz_series = np.array(lorenz_series)
     print(f"Traiettoria completa generata: {len(lorenz_series)} punti")
     
-    # Estrai la componente desiderata
-    component_series = lorenz_series[:, component_to_embed]  # estrai X, Y o Z
-    print(f"Componente {['X', 'Y', 'Z'][component_to_embed]} estratta: {len(component_series)} punti")
-    
-    # Crea embedding 3D dalla singola componente
-    print(f"Creando embedding 3D dalla componente {['X', 'Y', 'Z'][component_to_embed]}...")
-    try:
-        x_series = create_3d_embedding(component_series, embedding_tau, embedding_dim)
-        print(f"Embedding 3D creato: {x_series.shape}")
-    except ValueError as e:
-        print(f"Errore nell'embedding: {e}")
-        lyap_trad_list.append(np.nan)
-        lyap_tau_list.append(np.nan)
-        continue
+    # Scegli il metodo in base al flag
+    if USE_EMBEDDING:
+        # Metodo embedding
+        print(f"METODO EMBEDDING:")
+        # Estrai la componente desiderata
+        component_series = lorenz_series[:, component_to_embed]  # estrai X, Y o Z
+        print(f"Componente {['X', 'Y', 'Z'][component_to_embed]} estratta: {len(component_series)} punti")
+        
+        # Crea embedding 3D dalla singola componente
+        print(f"Creando embedding 3D dalla componente {['X', 'Y', 'Z'][component_to_embed]}...")
+        try:
+            x_series = create_3d_embedding(component_series, embedding_tau, embedding_dim)
+            print(f"Embedding 3D creato: {x_series.shape}")
+        except ValueError as e:
+            print(f"Errore nell'embedding: {e}")
+            lyap_trad_list.append(np.nan)
+            lyap_tau_list.append(np.nan)
+            continue
+    else:
+        # Metodo diretto
+        print(f"METODO DIRETTO:")
+        x_series = lorenz_series  # Usa direttamente la traiettoria 3D [X, Y, Z]
+        print(f"Usando traiettoria diretta 3D: {x_series.shape}")
 
-    # Lyapunov tradizionale (usando il sistema originale per il calcolo del Jacobiano)
+    # Lyapunov tradizionale (sempre usando il sistema originale)
     print("Calcolando Lyapunov tradizionale...")
     v = np.array([1.0, 0.0, 0.0])
     lyap_sum = 0
-    # Usa la traiettoria originale per il Jacobiano
+    # Usa sempre la traiettoria originale per il Jacobiano
     for x in lorenz_series:
         J = jacobian(x, rho)
         v = v + dt * J @ v
@@ -279,8 +295,9 @@ for i, rho in enumerate(rho_values):
     lyap_trad_list.append(lyap_trad)
     print(f"Lyapunov tradizionale: {lyap_trad:.4f}")
 
-    # Lyap_tau (usando l'embedding)
-    print("Calcolando Lyapunov tau su embedding...")
+    # Lyap_tau (usando il metodo scelto)
+    method_name = "embedding" if USE_EMBEDDING else "diretto"
+    print(f"Calcolando Lyapunov tau su metodo {method_name}...")
     recurrence_pairs = select_y_by_recurrence(x_series, delta0, tol, t_steps)
     if recurrence_pairs:
         lyap_tau_val = lyap_tau_continuous_multi(recurrence_pairs, DELTA, delta0, tol=tol)
@@ -304,9 +321,18 @@ plt.ylabel("Lyapunov exponent")
 plt.ylim(-5, 5)
 plt.legend()
 plt.grid(True)
-component_name = ['X', 'Y', 'Z'][component_to_embed]
-plt.title(f"Lyapunov vs rho (Embedding 3D della componente {component_name})")
-plt.savefig(f"lyapunov_vs_rho_embedding_{component_name}.png", dpi=300, bbox_inches='tight')
+
+# Titolo e nome file dipendono dal metodo usato
+if USE_EMBEDDING:
+    component_name = ['X', 'Y', 'Z'][component_to_embed]
+    title = f"Lyapunov vs rho (Embedding 3D della componente {component_name})"
+    filename = f"lyapunov_vs_rho_embedding_{component_name}.png"
+else:
+    title = "Lyapunov vs rho (Output diretto del sistema di Lorenz)"
+    filename = "lyapunov_vs_rho_direct.png"
+
+plt.title(title)
+plt.savefig(filename, dpi=300, bbox_inches='tight')
 plt.close()
-print(f"Grafico salvato come 'lyapunov_vs_rho_embedding_{component_name}.png'")
+print(f"Grafico salvato come '{filename}'")
 print("=== SIMULAZIONE COMPLETATA ===")

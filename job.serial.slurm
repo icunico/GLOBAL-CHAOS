@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=CHAOS
-#SBATCH --time=00:30:00
+#SBATCH --time=24:00:00
 #SBATCH --account=OGS_test2528_0
 #SBATCH -p dcgp_usr_prod
 #SBATCH --mail-type=ALL
