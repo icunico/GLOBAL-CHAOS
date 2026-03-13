@@ -3,12 +3,12 @@
 #include <math.h>
 #include <time.h>
 
-#define NUM_STEPS 10000
+#define NUM_STEPS 100000
 #define T_STEPS 300
-#define DELTAMAX 1.0
+#define DELTAMAX 20.0
 #define DELTA0 0.1
 #define DT 0.01
-#define TOL 0.4
+#define TOL 0.05
 
 #define SIGMA 10.0
 #define BETA (8.0/3.0)
@@ -94,7 +94,7 @@ void jacobian(Vec3 x, double rho, double J[3][3]){
 RecurrencePair* select_y_by_recurrence(Vec3 *series, int N, int *n_pairs){
     double soglia_min = DELTA0*(1-TOL);
     double soglia_max = DELTA0*(1+TOL);
-    int max_rec = 200;
+    int max_rec = 50;
     RecurrencePair *pairs = malloc(max_rec*sizeof(RecurrencePair));
     int rec_found = 0;
     int last_t1_used = -T_STEPS;
@@ -165,8 +165,15 @@ int main(){
     srand(time(NULL));
 
     // ===== Parametri rho =====
-    double rho_values[] = {40.0}; // puoi aggiungere altri valori
-    int rho_count = sizeof(rho_values)/sizeof(rho_values[0]);
+    double rho_min = 40.0;
+    double rho_max = 40.0;
+    double rho_step = 1.0;
+
+    int rho_count = (rho_max - rho_min)/rho_step + 1;
+
+    double *rho_values = malloc(rho_count*sizeof(double));
+    for(int i=0;i<rho_count;i++)
+        rho_values[i] = rho_min + i*rho_step;
 
     // Array risultati
     double *tempo_pred_trad_list = malloc(rho_count*sizeof(double));
@@ -191,9 +198,8 @@ int main(){
             double J[3][3];
             jacobian(series[step],rho,J);
             double newv[3];
-            for(int k=0;k<3;k++){
+            for(int k=0;k<3;k++)
                 newv[k] = v[k] + DT*(v[0]*J[k][0] + v[1]*J[k][1] + v[2]*J[k][2]);
-            }
             double normv = sqrt(newv[0]*newv[0]+newv[1]*newv[1]+newv[2]*newv[2]);
             for(int k=0;k<3;k++) v[k]=newv[k]/normv;
             lyap_sum += log(normv);
@@ -237,6 +243,7 @@ int main(){
     free(tempo_pred_trad_list);
     free(tempo_pred_tau_list);
     free(tempo_critico_list);
+    free(rho_values);
 
     printf("\n=== SIMULAZIONE COMPLETATA ===\n");
     return 0;
