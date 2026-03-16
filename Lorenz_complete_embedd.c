@@ -19,7 +19,7 @@
 #define RHO_STEP 0.5
 
 // ===== Flags =====
-#define ADD_NOISE 1
+#define ADD_NOISE 0
 #define ZERO_DETERMINISTIC 0
 #define USE_EMBEDDING 1  // 0 = originale, 1 = embedding 3D
 
@@ -27,7 +27,7 @@
 #define EMB_DIM 3
 #define TAU_EMB 10
 
-double noise_intensity = 5;
+double noise_intensity = 0.01;
 
 // ===== Structs =====
 typedef struct { double x[3]; } Vec3;
@@ -144,13 +144,14 @@ RecurrencePair* select_y_by_recurrence(Vec3 *series, int N, int *n_pairs){
             double d = norm(v1, v2);
             if(d>=soglia_min && d<=soglia_max){
                 // Calcola la lunghezza massima per l'evoluzione
-                int max_len;
-                if(USE_EMBEDDING) {
-                    max_len = max_index - (t1>t2 ? t1 : t2);
+                // int max_len;
+                // if(USE_EMBEDDING) {
+                //    max_len = max_index - (t1>t2 ? t1 : t2); 
+                int max_len = N - (t1>t2 ? t1 : t2) - (emb_dim-1)*tau_emb;
                     if(max_len <= 0) continue;
-                } else {
-                    max_len = max_index - (t1>t2 ? t1 : t2);
-                }
+                // } else {
+                //    max_len = max_index - (t1>t2 ? t1 : t2);
+                //}
                 
                 pairs[rec_found].x_vals = malloc(max_len*sizeof(Vec3));
                 pairs[rec_found].y_vals = malloc(max_len*sizeof(Vec3));
