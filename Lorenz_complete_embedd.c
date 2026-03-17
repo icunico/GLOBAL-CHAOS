@@ -19,7 +19,7 @@
 #define RHO_STEP 0.5
 
 // ===== Flags =====
-#define ADD_NOISE 0
+#define ADD_NOISE 1
 #define ZERO_DETERMINISTIC 0
 #define USE_EMBEDDING 1  // 0 = originale, 1 = embedding 3D
 
@@ -27,7 +27,7 @@
 #define EMB_DIM 3
 #define TAU_EMB 10
 
-double noise_intensity = 0.01;
+double noise_intensity = 1;
 
 // ===== Structs =====
 typedef struct { double x[3]; } Vec3;
