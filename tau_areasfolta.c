@@ -6,8 +6,8 @@
 #include <mpi.h>
 
 // ===== Parametri di default =====
-#define DELTAMAX 0.02
-#define DELTA0 0.002
+#define DELTAMAX 0.2
+#define DELTA0 0.02
 #define DT 0.01
 #define TOL 0.4
 #define T_STEPS 90
@@ -18,9 +18,10 @@
 // ===== Struct per vettori embeddati =====
 typedef struct {
     double x[EMB_DIM];
+    int valid;  // Flag per indicare se il vettore è valido (senza NaN)
 } VecEmb;
 
-// ===== Funzione norma =====
+// ===== Funzione norma (solo per vettori validi) =====
 double norm_vec(const VecEmb* a, const VecEmb* b) {
     double s = 0;
     for(int i = 0; i < EMB_DIM; i++) {
@@ -30,7 +31,15 @@ double norm_vec(const VecEmb* a, const VecEmb* b) {
     return sqrt(s);
 }
 
-// ===== Creazione embedding da serie 1D =====
+// ===== Verifica se un vettore contiene NaN =====
+int has_nan(const VecEmb* v) {
+    for(int i = 0; i < EMB_DIM; i++) {
+        if(isnan(v->x[i])) return 1;
+    }
+    return 0;
+}
+
+// ===== Creazione embedding da serie 1D con gestione NaN =====
 VecEmb* create_embedding(const double* series, int N, int* emb_length) {
     int max_index = N - (EMB_DIM - 1) * TAU_EMB;
     if(max_index <= 0) {
@@ -39,22 +48,59 @@ VecEmb* create_embedding(const double* series, int N, int* emb_length) {
     }
     
     VecEmb* embedded = (VecEmb*)malloc(max_index * sizeof(VecEmb));
+    int valid_count = 0;
+    
     for(int i = 0; i < max_index; i++) {
+        int has_nan_flag = 0;
+        
+        // Costruisci il vettore e verifica NaN
         for(int dim = 0; dim < EMB_DIM; dim++) {
             int idx = i + dim * TAU_EMB;
             embedded[i].x[dim] = series[idx];
+            if(isnan(series[idx])) {
+                has_nan_flag = 1;
+            }
+        }
+        
+        embedded[i].valid = !has_nan_flag;
+        if(embedded[i].valid) {
+            valid_count++;
         }
     }
     
     *emb_length = max_index;
+    
+    // Se troppi pochi vettori validi, libera tutto
+    if(valid_count < T_STEPS + 10) {
+        free(embedded);
+        *emb_length = 0;
+        return NULL;
+    }
+    
     return embedded;
 }
 
-// ===== Lyapunov di Paladin =====
+// ===== Trova il prossimo indice valido =====
+int next_valid_index(const VecEmb* series, int start, int max_len) {
+    for(int i = start; i < max_len; i++) {
+        if(series[i].valid) return i;
+    }
+    return -1;
+}
+
+// ===== Trova l'ultimo indice valido prima di un gap =====
+int prev_valid_index(const VecEmb* series, int start, int max_len) {
+    for(int i = start; i >= 0; i--) {
+        if(series[i].valid) return i;
+    }
+    return -1;
+}
+
+// ===== Lyapunov di Paladin con gestione intelligente dei gap =====
 double lyapunov_paladin(const double* series, int N) {
     if(N < 100) return NAN;
     
-    // Crea embedding
+    // Crea embedding mantenendo i NaN
     int N_emb;
     VecEmb* series_emb = create_embedding(series, N, &N_emb);
     if(!series_emb || N_emb < T_STEPS + 10) {
@@ -65,7 +111,7 @@ double lyapunov_paladin(const double* series, int N) {
     double soglia_min = DELTA0 * (1 - TOL);
     double soglia_max = DELTA0 * (1 + TOL);
     
-    // Trova ricorrenze
+    // Trova ricorrenze considerando solo vettori validi
     int max_pairs = 50;
     int n_pairs = 0;
     int* t1_list = (int*)malloc(max_pairs * sizeof(int));
@@ -73,9 +119,12 @@ double lyapunov_paladin(const double* series, int N) {
     int last_t1_used = -T_STEPS;
     
     for(int t1 = 0; t1 < N_emb - T_STEPS; t1++) {
+        if(!series_emb[t1].valid) continue;
         if(t1 - last_t1_used < T_STEPS) continue;
         
         for(int t2 = t1 + T_STEPS; t2 < N_emb; t2++) {
+            if(!series_emb[t2].valid) continue;
+            
             double d = norm_vec(&series_emb[t1], &series_emb[t2]);
             
             if(d >= soglia_min && d <= soglia_max) {
@@ -96,7 +145,7 @@ double lyapunov_paladin(const double* series, int N) {
         return NAN;
     }
     
-    // Calcola tempo di predicibilità
+    // Calcola tempo di predicibilità con gestione gap
     int tau_count = 0;
     double tau_sum = 0, d0_sum = 0;
     
@@ -105,27 +154,92 @@ double lyapunov_paladin(const double* series, int N) {
         int t2 = t2_list[p];
         int max_len = N_emb - (t1 > t2 ? t1 : t2);
         
-        int counting = 0, tau_current = 0;
+        int counting = 0;
+        int tau_current = 0;
         double d0_current = 0;
+        int last_valid_idx1 = t1;
+        int last_valid_idx2 = t2;
+        double last_valid_d = 0;
+        int gap_steps = 0;  // Contatore per i passi di gap
         
         for(int i = 0; i < max_len; i++) {
-            double d = norm_vec(&series_emb[t1 + i], &series_emb[t2 + i]);
+            int idx1 = t1 + i;
+            int idx2 = t2 + i;
             
-            if(!counting) {
-                if(d >= soglia_min && d <= soglia_max) {
-                    counting = 1;
-                    tau_current = 0;
-                    d0_current = d;
+            // Verifica se i vettori sono validi
+            int valid1 = series_emb[idx1].valid;
+            int valid2 = series_emb[idx2].valid;
+            
+            if(valid1 && valid2) {
+                // Entrambi validi: possiamo calcolare la distanza
+                double d = norm_vec(&series_emb[idx1], &series_emb[idx2]);
+                
+                if(gap_steps > 0) {
+                    // Siamo usciti da un gap: confronta con l'ultimo punto valido
+                    // Ricostruisci l'ultimo vettore valido
+                    VecEmb last_valid1 = series_emb[last_valid_idx1];
+                    VecEmb last_valid2 = series_emb[last_valid_idx2];
+                    double d_after_gap = norm_vec(&last_valid1, &last_valid2);
+                    
+                    if(d_after_gap <= DELTAMAX) {
+                        // Dopo il gap la distanza è ancora accettabile
+                        // Aggiungi i passi del gap al tempo
+                        tau_current += gap_steps;
+                        last_valid_d = d;
+                        gap_steps = 0;
+                    } else {
+                        // Dopo il gap la distanza è troppo grande, termina l'evoluzione
+                        if(counting) {
+                            tau_sum += tau_current;
+                            d0_sum += d0_current;
+                            tau_count++;
+                            counting = 0;
+                        }
+                        gap_steps = 0;
+                        continue;
+                    }
                 }
-            } else {
-                tau_current++;
-                if(d >= DELTAMAX) {
-                    tau_sum += tau_current;
-                    d0_sum += d0_current;
-                    tau_count++;
-                    counting = 0;
+                
+                if(!counting) {
+                    // Cerca l'inizio di una nuova evoluzione
+                    if(d >= soglia_min && d <= soglia_max) {
+                        counting = 1;
+                        tau_current = 0;
+                        d0_current = d;
+                        last_valid_d = d;
+                        last_valid_idx1 = idx1;
+                        last_valid_idx2 = idx2;
+                    }
+                } else {
+                    // Siamo in evoluzione
+                    tau_current++;
+                    if(d >= DELTAMAX) {
+                        tau_sum += tau_current;
+                        d0_sum += d0_current;
+                        tau_count++;
+                        counting = 0;
+                        gap_steps = 0;
+                    } else {
+                        last_valid_d = d;
+                        last_valid_idx1 = idx1;
+                        last_valid_idx2 = idx2;
+                    }
                 }
+            } 
+            else if(counting) {
+                // Almeno uno dei due è NaN (gap)
+                // Incrementa il contatore dei gap
+                gap_steps++;
+                // Non aggiorniamo last_valid_idx perché restano all'ultimo punto valido
             }
+            // Se non counting e gap, semplicemente ignora
+        }
+        
+        // Se stiamo ancora contando alla fine e non siamo in gap, registra
+        if(counting && gap_steps == 0) {
+            tau_sum += tau_current;
+            d0_sum += d0_current;
+            tau_count++;
         }
     }
     
@@ -143,26 +257,21 @@ double lyapunov_paladin(const double* series, int N) {
     return Tpred;
 }
 
-// ===== Pulizia serie da NaN =====
-int clean_series(const float* input, int N, double** output) {
-    int count = 0;
+// ===== Estrai serie temporale dal netCDF mantenendo i NaN =====
+double* extract_series_with_nan(const float* input, int N, int* valid_count) {
+    double* output = (double*)malloc(N * sizeof(double));
+    *valid_count = 0;
+    
     for(int i = 0; i < N; i++) {
-        if(!isnan(input[i]) && input[i] > 0 && input[i] < 100) {
-            count++;
+        if(isnan(input[i]) || input[i] <= 0 || input[i] >= 100) {
+            output[i] = NAN;
+        } else {
+            output[i] = (double)input[i];
+            (*valid_count)++;
         }
     }
     
-    if(count < 100) return 0;
-    
-    *output = (double*)malloc(count * sizeof(double));
-    int idx = 0;
-    for(int i = 0; i < N; i++) {
-        if(!isnan(input[i]) && input[i] > 0 && input[i] < 100) {
-            (*output)[idx++] = (double)input[i];
-        }
-    }
-    
-    return count;
+    return output;
 }
 
 // ===== Leggi informazioni dal netCDF =====
@@ -252,7 +361,7 @@ int main(int argc, char** argv) {
     
     // Rank 0 legge le informazioni del file
     if (rank == 0) {
-        printf("\n=== Lyapunov Paladin MPI with NetCDF ===\n");
+        printf("\n=== Lyapunov Paladin MPI with NetCDF (NaN-aware with gap handling) ===\n");
         printf("File: %s\n", filename);
         printf("Variabile: %s\n", varname);
         printf("Processi MPI: %d\n", size);
@@ -282,10 +391,10 @@ int main(int argc, char** argv) {
     MPI_Bcast(lats, nlat, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(lons, nlon, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     
-    // Calcola distribuzione dei punti DOPO la decimazione
+    // Calcola distribuzione dei punti
     int total_points_original = nlat * nlon;
-    int step = 25;  // Prendi un punto ogni 100
-    int total_points_decimated = total_points_original / step;  // Punti totali dopo decimazione
+    int step = 1;  // Decimazione spaziale
+    int total_points_decimated = total_points_original / step;
     
     int points_per_rank = total_points_decimated / size;
     int remainder = total_points_decimated % size;
@@ -307,10 +416,10 @@ int main(int argc, char** argv) {
     double* local_lats = (double*)malloc(local_count * sizeof(double));
     double* local_lons = (double*)malloc(local_count * sizeof(double));
     
-    // Processa ogni punto assegnato a questo rank (dopo decimazione)
+    // Processa ogni punto assegnato a questo rank
     for (int i = 0; i < local_count; i++) {
         int global_decimated_idx = start_idx + i;
-        int global_original_idx = global_decimated_idx * step;  // Mappa all'indice originale
+        int global_original_idx = global_decimated_idx * step;
         
         int lat_idx = global_original_idx / nlon;
         int lon_idx = global_original_idx % nlon;
@@ -325,17 +434,19 @@ int main(int argc, char** argv) {
         // Leggi serie dal netCDF
         float* raw_data = read_netcdf_point(filename, varname, lat_idx, lon_idx, ntime);
         
-        // Pulisci serie (rimuovi NaN)
-        double* clean_data;
-        int clean_len = clean_series(raw_data, ntime, &clean_data);
+        // Estrai serie mantenendo i NaN
+        int valid_count;
+        double* series = extract_series_with_nan(raw_data, ntime, &valid_count);
         free(raw_data);
         
-        if (clean_len >= 100) {
-            local_paladin[i] = lyapunov_paladin(clean_data, clean_len);
-            free(clean_data);
+        // Calcola Lyapunov (gestisce internamente i NaN)
+        if (valid_count >= 100) {
+            local_paladin[i] = lyapunov_paladin(series, ntime);
         } else {
             local_paladin[i] = NAN;
         }
+        
+        free(series);
     }
     
     printf("[Rank %d] Calcolo completato!\n", rank);
@@ -403,7 +514,7 @@ int main(int argc, char** argv) {
         printf("\n=== RISULTATI ===\n");
         printf("File salvato: lyapunov_paladin_mpi.dat\n");
         printf("Punti originali: %d\n", total_points_original);
-        printf("Punti processati (step=100): %d\n", total_points_decimated);
+        printf("Punti processati (step=%d): %d\n", step, total_points_decimated);
         printf("Punti validi: %d (%.1f%% dei processati)\n", 
                valid_count, 100.0 * valid_count / total_points_decimated);
         
